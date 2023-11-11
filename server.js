@@ -7,6 +7,10 @@ const app = express();
 const MongoClient = require('mongodb').MongoClient;
 const url = 'mongodb+srv://hung:pass@cluster0.dpxtjwe.mongodb.net/?retryWrites=true&w=majority';
 const client = new MongoClient(url);
+const Bcrypt = require('bcrypt');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+const sendgridTransport = require('nodemailer-sendgrid-transport');
 client.connect();
 
 app.use(cors());
@@ -28,11 +32,6 @@ app.use((req, res, next) =>
 
 app.listen(4000); // start Node + Express server on port 4000
 
-const Bcrypt = require('bcrypt');
-const crypto = require('crypto');
-const nodemailer = require('nodemailer');
-const sendgridTransport = require('nodemailer-sendgrid-transport');
-
 var userSchema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
@@ -40,93 +39,11 @@ var userSchema = new mongoose.Schema({
     password: String,
   });
 
-
 var tokenSchema = new mongoose.Schema({
     _userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
     token: { type: String, required: true },
     expireAt: { type: Date, default: Date.now, index: { expires: 86400000 } }
 });
-
-// app.post('/api/addcard', async (req, res, next) =>
-// {
-//   // incoming: userId, color
-//   // outgoing: error
-	
-//   const { userId, card } = req.body;
-
-//   const newCard = {Card:card,UserId:userId};
-//   var error = '';
-
-//   try
-//   {
-//     const db = client.db('COP4331Cards');
-//     const result = db.collection('Cards').insertOne(newCard);
-//   }
-//   catch(e)
-//   {
-//     error = e.toString();
-//   }
-
-//   cardList.push( card );
-
-//   var ret = { error: error };
-//   res.status(200).json(ret);
-// });
-
-
-// app.post('/api/login', async (req, res, next) => 
-// {
-//   // incoming: login, password
-//   // outgoing: id, firstName, lastName, error
-	
-//  var error = '';
-
-//   const { login, password } = req.body;
-
-//   const db = client.db('COP4331Cards');
-//   const results = await db.collection('Users').find({Login:login,Password:password}).toArray();
-
-//   var id = -1;
-//   var fn = '';
-//   var ln = '';
-
-//   if( results.length > 0 )
-//   {
-//     id = results[0].UserId;
-//     fn = results[0].FirstName;
-//     ln = results[0].LastName;
-//   }
-
-//   var ret = { id:id, firstName:fn, lastName:ln, error:''};
-//   res.status(200).json(ret);
-// });
-
-
-
-
-// app.post('/api/searchcards', async (req, res, next) => 
-// {
-//   // incoming: userId, search
-//   // outgoing: results[], error
-
-//   var error = '';
-
-//   const { userId, search } = req.body;
-
-//   var _search = search.trim();
-  
-//   const db = client.db('COP4331Cards');
-//   const results = await db.collection('Cards').find({"Card":{$regex:_search+'.*', $options:'i'}}).toArray();
-  
-//   var _ret = [];
-//   for( var i=0; i<results.length; i++ )
-//   {
-//     _ret.push( results[i].Card );
-//   }
-  
-//   var ret = {results:_ret, error:error};
-//   res.status(200).json(ret);
-// });
 
 exports.login = function(req, res, next) {
   User.findOne({ email: req.body.email }, function(err, user) {
