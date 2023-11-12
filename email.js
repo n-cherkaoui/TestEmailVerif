@@ -88,7 +88,7 @@ exports.signup = async function (req, res, next) {
       const transporter = nodemailer.createTransport(
         sendgridTransport({
           auth: {
-            api_key: "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",
+            api_key: "replace this with the key",
           }
         })
       )
