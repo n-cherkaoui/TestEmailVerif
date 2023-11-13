@@ -1,4 +1,4 @@
-const { login, signup } = require('./email')
+const { login, signup, confirmEmail } = require('./email')
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -27,7 +27,9 @@ app.use((req, res, next) =>
 
 app.post('/api/login', login);
 app.post('/api/register', signup);
-// TODO: confirmemail, resendlink. 
+app.get('/confirmation/:email/:token', confirmEmail)
+// app.post('/api/resendLink', signup);
+
 
 app.listen(9000, () => {
     console.log('Server listening on port ' + 9000);

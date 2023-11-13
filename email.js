@@ -1,3 +1,6 @@
+// echo "export SENDGRID_API_KEY='YOUR_API_KEY'" > sendgrid.env
+// echo "sendgrid.env" >> .gitignore
+// source ./sendgrid.env
 const Bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
@@ -7,13 +10,16 @@ const MongoClient = require('mongodb').MongoClient;
 const url = "mongodb+srv://API:WH33LD34L5@cluster0.afh9bua.mongodb.net/?retryWrites=true&w=majority";
 const client = new MongoClient(url);
 client.connect();
+const ObjectId = require("mongodb").ObjectId;
+require("dotenv").config();
+const API_KEY = process.env.SENDGRID_API_KEY;
 
-var userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  isVerified: { type: Boolean, default: false },
-  password: String,
-});
+// var userSchema = new mongoose.Schema({
+//   name: String,
+//   email: { type: String, unique: true },
+//   isVerified: { type: Boolean, default: false },
+//   password: String,
+// });
 
 var tokenSchema = new mongoose.Schema({
   _userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
@@ -26,7 +32,6 @@ exports.login = async function (req, res, next) {
 
   try {
     const user = await db.collection("Users").findOne({ email: req.body.email })
-    console.log(user)
     // user is not found in database i.e. user is not registered yet.
     if (!user) {
       return res.status(401).send({ msg: 'The email address ' + req.body.email + ' is not associated with any account. please check and try again!' });
@@ -45,9 +50,11 @@ exports.login = async function (req, res, next) {
     }
   }
   catch (e) {
-    return res.status(500).send({ msg: err.message });
+    return res.status(500).send({ msg: "Failed to login. Please try again" });
   }
 };
+
+
 
 exports.signup = async function (req, res, next) {
   var db = client.db("cop4331");
@@ -71,24 +78,25 @@ exports.signup = async function (req, res, next) {
         email: email,
         userName: userName,
         password: password,
+        isVerified: false,
         carsArr: []
       });
       user = await db.collection("Users").findOne({ email: req.body.email })
-      console.log(user)
 
       // generate token and save
       try {
-        var token = new Token({ _userId: user._id, token: crypto.randomBytes(16).toString('hex') });
+        var token = new Token({ _userId: user._id, token: crypto.randomBytes(16).toString('hex'), expireAt: { type: Date, default: Date.now, index: { expires: 86400000 } } });
+        await db.collection("Tokens").insertOne(token);
       }
       catch (e) {
-        return res.status(500).send({ msg: e });
+        return res.status(500).send({ msg: "Failed to generate token. Please try again." });
       }
 
       // Send email (use verified sender's email address & generated API_KEY on SendGrid)
       const transporter = nodemailer.createTransport(
         sendgridTransport({
           auth: {
-            api_key: "replace this with the key",
+            api_key: API_KEY,
           }
         })
       )
@@ -103,7 +111,7 @@ exports.signup = async function (req, res, next) {
     }
   }
   catch (e) {
-    return res.status(500).send({ msg: e });
+    return res.status(500).send({ msg: "Failed to register user. Please try again." }); 
   }
 
 };
@@ -112,42 +120,49 @@ exports.signup = async function (req, res, next) {
 // It is GET method, you have to write like that
 //    app.get('/confirmation/:email/:token',confirmEmail)
 
-exports.confirmEmail = function (req, res, next) {
-  Token.findOne({ token: req.params.token }, function (err, token) {
+exports.confirmEmail = async function (req, res, next) {
+  var db = client.db("cop4331");
+
+  try {
+    var token = await db.collection("Tokens").findOne({ token: req.params.token })
     // token is not found into database i.e. token may have expired 
+
     if (!token) {
       return res.status(400).send({ msg: 'Your verification link may have expired. Please click on resend for verify your Email.' });
     }
     // if token is found then check valid user 
     else {
-      User.findOne({ _id: token._userId, email: req.params.email }, function (err, user) {
-        // not valid user
-        if (!user) {
-          return res.status(401).send({ msg: 'We were unable to find a user for this verification. Please SignUp!' });
+      user = await db.collection("Users").findOne({ _id: token._userId, email: req.params.email })
+
+      // not valid user
+      if (!user) {
+        return res.status(401).send({ msg: 'We were unable to find a user for this verification. Please SignUp!' });
+      }
+      // user is already verified
+      else if (user.isVerified) {
+        return res.status(200).send({ msg: 'User has been already verified. Please Login' });
+      }
+      // verify user
+      else {
+        // change isVerified to true
+        try {
+          await db.collection("Users").updateOne({ _id: new ObjectId(token._userId) },
+            { $set: { isVerified: true,}
+            });
+
+          // account successfully verified
+          return res.status(200).send({ msg: 'Your account has been successfully verified' });
         }
-        // user is already verified
-        else if (user.isVerified) {
-          return res.status(200).send({ msg: 'User has been already verified. Please Login' });
+        catch (e) {
+          return res.status(500).send({ msg: "Failed to verify account. Please try again." });
         }
-        // verify user
-        else {
-          // change isVerified to true
-          user.isVerified = true;
-          user.save(function (err) {
-            // error occur
-            if (err) {
-              return res.status(500).send({ msg: err.message });
-            }
-            // account successfully verified
-            else {
-              return res.status(200).send({ msg: 'Your account has been successfully verified' });
-            }
-          });
-        }
-      });
+      }
     }
 
-  });
+  }
+  catch (e) {
+    return res.status(500).send({ msg: "Failed to process token. Please try again." });
+  }
 };
 
 // TODO: Get this to work
