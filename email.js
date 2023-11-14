@@ -55,6 +55,29 @@ exports.login = async function (req, res, next) {
 };
 
 
+const forgotPassword = (password, id) => {
+  // Set isVerified to false
+  // Send the email to confirm and set isVerified to true
+  // Change password
+}
+
+const sendEmail = async({userName, email, token, host}) => {
+  const transporter = nodemailer.createTransport(
+    sendgridTransport({
+      auth: {
+        api_key: API_KEY,
+      }
+    })
+  )
+  var mailOptions = { from: 'thaihungtran57116@gmail.com', to: user.email, subject: 'Account Verification Link', text: 'Hello ' + req.body.firstName + ',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' };
+  try {
+    transporter.sendMail(mailOptions)
+  }
+  catch (e) {
+    return res.status(500).send({ msg: 'Technical Issue!, Please click on resend for verify your Email.' });
+  }
+  return res.status(200).send({ msg: 'A verification email has been sent to ' + user.email + '. It will be expire after one day. If you not get verification Email click on resend token.' });
+}
 
 exports.signup = async function (req, res, next) {
   var db = client.db("cop4331");
@@ -93,21 +116,7 @@ exports.signup = async function (req, res, next) {
       }
 
       // Send email (use verified sender's email address & generated API_KEY on SendGrid)
-      const transporter = nodemailer.createTransport(
-        sendgridTransport({
-          auth: {
-            api_key: API_KEY,
-          }
-        })
-      )
-      var mailOptions = { from: 'thaihungtran57116@gmail.com', to: user.email, subject: 'Account Verification Link', text: 'Hello ' + req.body.firstName + ',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' };
-      try {
-        transporter.sendMail(mailOptions)
-      }
-      catch (e) {
-        return res.status(500).send({ msg: 'Technical Issue!, Please click on resend for verify your Email.' });
-      }
-      return res.status(200).send({ msg: 'A verification email has been sent to ' + user.email + '. It will be expire after one day. If you not get verification Email click on resend token.' });
+      sendEmail()
     }
   }
   catch (e) {
@@ -116,10 +125,8 @@ exports.signup = async function (req, res, next) {
 
 };
 
-// TODO: get this to work
 // It is GET method, you have to write like that
 //    app.get('/confirmation/:email/:token',confirmEmail)
-
 exports.confirmEmail = async function (req, res, next) {
   var db = client.db("cop4331");
 
@@ -205,4 +212,42 @@ exports.resendLink = function (req, res, next) {
       });
     }
   });
+};
+
+exports.resetPassword = async function (req, res, next) {
+  var db = client.db("cop4331");
+  const {email} = req.body;
+  var Token = mongoose.model('Token', tokenSchema);
+
+  try {
+    var user = await db.collection("Users").findOne({ email: req.body.email })
+    // error occur
+    // if email is exist into database i.e. email is associated with another user.
+    if (!user) {
+      return res.status(400).send({ msg: 'If this email is associated with an account, we will send an email to reset the password.' });
+    }
+    // if user is not exist into database then save the user into database for register account
+    else {
+      await db.collection("Users").updateOne({ _id: new ObjectId(user._id) }, { $set: { isVerified: false,} });
+
+      // generate token and save
+      try {
+        // token for reset password expire in 1 hour 
+        var token = new Token({ _userId: user._id, token: crypto.randomBytes(16).toString('hex'), expireAt: { type: Date, default: Date.now, index: { expires: 3600000 } } });
+        await db.collection("Tokens").insertOne(token);
+      }
+      catch (e) {
+        return res.status(500).send({ msg: "Failed to generate token. Please try again." });
+      }
+
+      // Send email (use verified sender's email address & generated API_KEY on SendGrid)
+      sendEmail()
+    }
+  }
+  catch (e) {
+    return res.status(500).send({ msg: "Failed to register user. Please try again." }); 
+  }
+
+  
+
 };
