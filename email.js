@@ -62,21 +62,7 @@ const forgotPassword = (password, id) => {
 }
 
 const sendEmail = async({userName, email, token, host}) => {
-  const transporter = nodemailer.createTransport(
-    sendgridTransport({
-      auth: {
-        api_key: API_KEY,
-      }
-    })
-  )
-  var mailOptions = { from: 'thaihungtran57116@gmail.com', to: user.email, subject: 'Account Verification Link', text: 'Hello ' + req.body.firstName + ',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' };
-  try {
-    transporter.sendMail(mailOptions)
-  }
-  catch (e) {
-    return res.status(500).send({ msg: 'Technical Issue!, Please click on resend for verify your Email.' });
-  }
-  return res.status(200).send({ msg: 'A verification email has been sent to ' + user.email + '. It will be expire after one day. If you not get verification Email click on resend token.' });
+  
 }
 
 exports.signup = async function (req, res, next) {
@@ -116,7 +102,22 @@ exports.signup = async function (req, res, next) {
       }
 
       // Send email (use verified sender's email address & generated API_KEY on SendGrid)
-      sendEmail()
+      const transporter = nodemailer.createTransport(
+        sendgridTransport({
+          auth: {
+            api_key: API_KEY,
+          }
+        })
+      )
+      var mailOptions = { from: 'thaihungtran57116@gmail.com', to: user.email, subject: 'Account Verification Link', text: 'Hello ' + req.body.firstName + ',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' };
+      try {
+        transporter.sendMail(mailOptions)
+      }
+      catch (e) {
+        return res.status(500).send({ msg: 'Technical Issue!, Please click on resend for verify your Email.' });
+      }
+      return res.status(200).send({ msg: 'A verification email has been sent to ' + user.email + '. It will be expire after one day. If you not get verification Email click on resend token.' });
+      // sendEmail()
     }
   }
   catch (e) {
@@ -214,6 +215,8 @@ exports.resendLink = function (req, res, next) {
   });
 };
 
+
+// try to map the link to the new password page after 
 exports.resetPassword = async function (req, res, next) {
   var db = client.db("cop4331");
   const {email} = req.body;
@@ -232,8 +235,7 @@ exports.resetPassword = async function (req, res, next) {
 
       // generate token and save
       try {
-        // token for reset password expire in 1 hour 
-        var token = new Token({ _userId: user._id, token: crypto.randomBytes(16).toString('hex'), expireAt: { type: Date, default: Date.now, index: { expires: 3600000 } } });
+        var token = new Token({ _userId: user._id, token: crypto.randomBytes(16).toString('hex'), expireAt: { type: Date, default: Date.now, index: { expires: 86400000 } } });
         await db.collection("Tokens").insertOne(token);
       }
       catch (e) {
@@ -241,13 +243,48 @@ exports.resetPassword = async function (req, res, next) {
       }
 
       // Send email (use verified sender's email address & generated API_KEY on SendGrid)
-      sendEmail()
+      const transporter = nodemailer.createTransport(
+        sendgridTransport({
+          auth: {
+            api_key: API_KEY,
+          }
+        })
+      )
+      var mailOptions = { from: 'thaihungtran57116@gmail.com', to: user.email, subject: 'Verification to Reset Password Link', text: 'Hello ' + user.firstName + ',\n\n' + 'Please verify your account to reset your password by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' };
+      try {
+        transporter.sendMail(mailOptions)
+      }
+      catch (e) {
+        return res.status(500).send({ msg: 'Technical Issue!, Please click on resend for verify your Email.' });
+      }
+      return res.status(200).send({ msg: 'A verification email has been sent to ' + user.email + '. It will be expire after one day. If you not get verification Email click on resend token.' });
+
     }
   }
   catch (e) {
     return res.status(500).send({ msg: "Failed to register user. Please try again." }); 
   }
+};
 
-  
+exports.changePassword = async function (req, res, next) {
+  var db = client.db("cop4331");
+  const {email, password} = req.body;
+
+  try {
+    var user = await db.collection("Users").findOne({ email: req.body.email })
+    // error occur
+    // if email is exist into database i.e. email is associated with another user.
+    if (!user) {
+      return res.status(400).send({ msg: 'This should not happen because resetPassword would check first before we get here' });
+    }
+    // if user is not exist into database then save the user into database for register account
+    else {
+      await db.collection("Users").updateOne({ _id: new ObjectId(user._id) }, { $set: { password: password,} });
+    }
+    return res.status(200).send({ msg: 'The password for ' + user.userName + 'has been changed!' });
+  }
+  catch (e) {
+    return res.status(500).send({ msg: "Failed to register user. Please try again." }); 
+  }
 
 };
