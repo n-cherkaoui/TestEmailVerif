@@ -262,7 +262,7 @@ exports.resetPassword = async function (req, res, next) {
     }
   }
   catch (e) {
-    return res.status(500).send({ msg: "Failed to register user. Please try again." }); 
+    return res.status(500).send({ msg: "Failed to verified user to reset password. Please try again." }); 
   }
 };
 
@@ -284,7 +284,7 @@ exports.changePassword = async function (req, res, next) {
     return res.status(200).send({ msg: 'The password for ' + user.userName + 'has been changed!' });
   }
   catch (e) {
-    return res.status(500).send({ msg: "Failed to register user. Please try again." }); 
+    return res.status(500).send({ msg: "Failed to change password. Please try again." }); 
   }
 
 };
